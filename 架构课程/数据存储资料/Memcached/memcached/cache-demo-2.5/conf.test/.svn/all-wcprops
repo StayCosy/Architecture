@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/repos/alisoft/!svn/ver/182867/xplatform/branches/branch_3_0/asf/cache/src/conf.test
+END
+memcached.xml
+K 25
+svn:wc:ra_dav:version-url
+V 98
+/repos/alisoft/!svn/ver/151466/xplatform/branches/branch_3_0/asf/cache/src/conf.test/memcached.xml
+END
+memcached1.xml
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/repos/alisoft/!svn/ver/241820/xplatform/branches/branch_3_0/asf/cache/src/conf.test/memcached1.xml
+END
+memcached_cluster.xml
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/repos/alisoft/!svn/ver/247418/xplatform/branches/branch_3_0/asf/cache/src/conf.test/memcached_cluster.xml
+END
+memcached_cluster2.xml
+K 25
+svn:wc:ra_dav:version-url
+V 107
+/repos/alisoft/!svn/ver/247418/xplatform/branches/branch_3_0/asf/cache/src/conf.test/memcached_cluster2.xml
+END
+memcached_cluster3.xml
+K 25
+svn:wc:ra_dav:version-url
+V 107
+/repos/alisoft/!svn/ver/247746/xplatform/branches/branch_3_0/asf/cache/src/conf.test/memcached_cluster3.xml
+END

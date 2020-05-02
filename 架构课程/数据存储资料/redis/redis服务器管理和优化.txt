@@ -1,0 +1,63 @@
+redis服务管理
+   长时间不断运行的服务进程，配置参数都可以在不重启的情况立即生效
+   即使从aof的持久模式转换到RDB都可以不用重启
+   config set /config get
+   redis2.4的版本还不是全部参数都可以通过命令访问
+   redis2.6开始，所有配置参数都可以通过命令来访问了。
+
+   config set 所支持的参数和redis.conf文件中的格式可能有差异
+   config get s*
+   config get save
+   config get slowlog-max-len
+   config get *
+
+   config set slowlog-max-len 300
+
+   info命令(很多状态参数，可以用于统计信息使用)
+      keyspace hits(键空间命中次数)
+      keyspace_misses（键空间不命中次数)
+      Number of commands processed(执行命令的次数)
+      Number of expired keys(过期的key的数量)
+      等等
+
+   config resetstat 状态重置
+
+   dbsize  key数量
+
+   flushall 删除所有数据库中的内容
+   flushdb 只删除当前数据库中的内容
+   shutdown
+            停止所有客户端，同时以阻塞方式执行内存数据持久化。
+	    如果AOF模式被启用，则将缓存中的数据flush到AOF文件。退出服务器
+ save 命令
+            执行一个同步保存操作，将当前redis实例所有数据快照以RDB文件的形式保存到硬盘
+           这个命令很少在生产环境下使用,它会阻塞所有客户端。
+	   bgsave这样的命令异步的。
+
+slaveof host port 
+
+showlog 读取执行时间较长的命令
+               两个参数   阀值、队列
+	       slow-log-slower-than 设置为0，以便收集所有命令的执行时间
+
+	       slowlog get n   读取命令信息n 最近n条命令
+	       slowlog len   获取slowlog队列的长度
+	       slowlog reset  清空slowlog中的内容
+
+redis内存优化
+   很多数据类型从redis2.2开始就可以通过特殊的编码来进行存储空间优化
+   hashes ,list ,Integer组成的Set,都可以节约空间
+
+   主要在配置文件中
+   如果hash中
+   hash-max-zipmap-entries 512
+hash-max-zipmap-value 64
+
+   setrange/getrange/getbit/setbit
+
+
+   redis.conf文件
+
+
+
+no-appendfsync-on-rewrite yes

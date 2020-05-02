@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<memcached>
+    
+    <client name="mclient5" compressEnable="true" defaultEncoding="UTF-8" socketpool="pool5">
+        <errorHandler>com.alisoft.xplatform.asf.cache.memcached.MemcachedErrorHandler</errorHandler>
+    </client>
+    
+    <client name="mclient6" compressEnable="true" defaultEncoding="UTF-8" socketpool="pool6">
+        <errorHandler>com.alisoft.xplatform.asf.cache.memcached.MemcachedErrorHandler</errorHandler>
+    </client>   
+    
+    
+    <socketpool name="pool5" failover="true" initConn="5" minConn="5" maxConn="250" maintSleep="0"
+        nagle="false" socketTO="3000" aliveCheck="true">
+        <servers>10.2.225.139:33005</servers>
+    </socketpool> 
+    
+    <socketpool name="pool6" failover="true" initConn="5" minConn="5" maxConn="250" maintSleep="0"
+        nagle="false" socketTO="3000" aliveCheck="true">
+        <servers>10.2.225.139:33006</servers>
+    </socketpool>
+    
+    
+</memcached>

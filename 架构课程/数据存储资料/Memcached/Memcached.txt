@@ -1,0 +1,75 @@
+tar -xzvf  文件.tar.gz
+
+安装libevent
+./configure
+make
+make install
+
+安装Memcached
+./configure
+make
+make install
+
+启动服务
+./memcached -d -m 512 -p 11211 -u root
+连接
+telnet localhost 11211
+
+一些命令
+
+1.datablock 长度必须正确
+set liu 32 0 4
+java
+STORED
+
+set liu 32 0 4
+cplus
+CLIENT_ERROR bad data
+
+
+2.add只能添加不存在的key
+add liu 32 0 5
+cplus
+NOT_STORED
+
+add song 32 0 5
+cplus
+
+3.replace 只能替换已有的key
+replace liu 32 0 5
+cplus
+STORED
+
+4.get/gets
+  get liu song 
+
+  gets liu
+ 
+  cas liu 
+
+5.计数命令
+set count 32 0 1
+1
+STORED
+
+incr count 8
+decr count 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

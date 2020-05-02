@@ -1,0 +1,573 @@
+引言
+   不仅存储，主要是检索和处理数据
+   最最基础的就是表 ---视图、索引等都是为了配合检索和处理的。
+   
+   然后dbf文件 ---》如何组织
+
+1、block、buffer的概念
+	简述段区块的概念，引出块的概念
+                  块可以是4k ,8k,2k show parameter block
+                  block 是 oracle io的最小单位
+                  建一个表就是一个段
+                  create table t2(id int,name varhar2(20));
+                  insert into t2 values(1,'aaa');
+                  insert into t2 values(2,'bbb');
+                  commit
+                  区的概念--》给段分配区(物理上分配8个连续的块）
+                  区是oracle给段分配空间的最小单位。
+                  块放的是行  一行在一个块中，一个块中有多个行（一般情况）
+                  block 是 oracle io的最小单位
+                    对硬盘来讲一次IO最耗费的是寻磁道时间90%
+	buffer的概念
+              一个buffer和一个block对应  大小一样
+2、buffer cache的意义
+	减少IO
+		物理IO：磁盘读
+		逻辑IO：内存读
+	构造cr块：   一个会话删除不提交 另外一个会话查看
+	undo引出来：回滚未提交数据；构造cr块
+		只要未提交，就可以回滚
+		只要未提交，别的会话就看不见修改
+3、buffer cache的内存组织结构
+	CBC：cache buffer chain 
+             以地址方式链起来，分析原理，化图
+		根据block地址找block的时候，需要使用到CBC chain
+		
+	LRU：最近最少使用     画图分析原理（干净块，脏块，free块） 冷端、热端
+		LRU、MRU
+	LRUW  链的是脏块--->DBWriter
+	CHECKPOINT QUEUE：  也是把脏块链起来，顺序是按第一次脏的时间点
+
+4、DB_WRITER_PROCESSES
+   show parameter writer
+   alter system set db_writer_processes=2 scope=spfile;
+   startup force;
+5、Buffer Cache的重要参数配置
+	SELECT component,current_size,min_size FROM v$sga_dynamic_components;
+	Buffer Cache的大小配置
+	alter system set db_cache_size=200M scope=both;
+		sga_max_size
+			
+		sga_target
+		db_cache_size
+在OLTP系统中，对于DB_CACHE_SIZE的设置，推荐配置是：
+DB_CACHE_SIZE = SGA_MAX_SIZE/2～ SGA_MAX_SIZE*2/3
+使用advice来确认buffer cache的大小
+
+SELECT size_for_estimate "Cache Size (MB)",size_factor,buffers_for_estimate "Buffers",
+estd_physical_read_factor est_read_factor,
+estd_physical_reads estd_phy_red,estd_physical_read_time est_phy_red_t
+FROM  v$db_cache_advice
+WHERE NAME='DEFAULT' AND block_size=(SELECT VALUE FROM v$parameter WHERE NAME='db_block_size');
+
+
+6、Buffer状态
+	x$bh
+        desc x$bh --->常用列。
+state:  查看状态   select distinct state from x$bh;
+
+0, FREE, no valid block image
+什么是CUR讲解  
+1, XCUR, a current mode block, exclusive to this instance
+在非RAC的环境下，CUR永远等于XCUR
+2, SCUR, a current mode block, shared with other instances
+RAC下才有可能SCUR
+3, CR, a consistent read (stale) block image
+4, READ, buffer is reserved for a block being read from disk
+---------以下备份恢复--------------------
+5, MREC, a block in media recovery mode
+6, IREC, a block in instance (crash) recovery mode
+
+一个对象占用buffer的具体情况
+select * from t2;
+alter system flush buffer_cache;
+SQL>select
+o.object_name,
+decode(state,0,'free',1,'xcur',2,'scur',3,'cr', 4,'read',5,'mrec',
+6,'irec',7,'write',8,'pi') state,
+count(*) blocks
+from x$bh b, dba_objects o
+where b.obj = o.data_object_id
+--and o.object_name = 'T2'
+group by o.object_name, state
+order by blocks desc;
+
+select * from t2; (然后重复上条语句）
+update t2 set name='xxxx' where id = 1 同时另外一个回话，(然后重复语句）
+
+t2使用内存情况列出来
+select object_name,DBARFIL,DBABLK from x$bh a,dba_objects b 
+where a.obj=b.object_id and object_name='T2'
+
+
+这个块在内存中的状态---->找寻buffer的使用状态状况。
+select class, flag, state, lru_flag from x$bh
+where dbarfil = 1 and dbablk = 88288;
+
+对象使用pool的具体情况（考虑了各种池子的情况）
+
+占用buffer Cache的情况 哪些对象分别占用了多少
+select
+o.object_name,
+decode(state,0,'free',1,'xcur',2,'scur',3,'cr', 4,'read',5,'mrec',
+6,'irec',7,'write',8,'pi') state,
+count(*) blocks
+from x$bh b, dba_objects o
+where b.obj = o.data_object_id and state <> 0
+group by o.object_name, state
+order by blocks asc;
+
+比上面更详细显示
+select decode(wbpd.bp_id,
+1,'keep',
+2,'recycle',
+3,'default',
+4,'2k pool',
+5,'4k pool',
+6,'8k pool',
+7,'16k pool',
+8,'32k pool',
+'unknown') pool,
+bh.owner,
+bh.object_name object_name,
+count(1) numOfBuffers
+from x$kcbwds wds,
+x$kcbwbpd wbpd,
+(select set_ds, x.addr, o.name object_name, u.name owner
+from sys.obj$ o, sys.user$ u, x$bh x
+where o.owner# = u.user#
+and o.dataobj# = x.obj
+and x.state != 0
+and o.owner# != 0
+) bh
+where wds.set_id >= wbpd.bp_lo_sid
+and wds.set_id <= wbpd.bp_hi_sid
+and wbpd.bp_size != 0
+and wds.addr = bh.set_ds
+--and object_name='T2'
+group by decode(wbpd.bp_id,
+1,'keep',
+2,'recycle',
+3,'default',
+4,'2k pool',
+5,'4k pool',
+6,'8k pool',
+7,'16k pool',
+8,'32k pool',
+'unknown'),
+bh.owner,
+bh.object_name
+order by 1, 4, 3, 2;
+
+寻找热块
+
+SELECT
+   obj      object,
+   dbarfil  file#,
+   dbablk   block#,
+   tch      touches
+FROM
+   x$bh
+WHERE
+   tch > 10
+ORDER BY
+   tch asc;
+找出热块对应的对象名。
+select object_name,DBARFIL,DBABLK from x$bh a,dba_objects b 
+where a.obj=b.object_id and DBARFIL=1 and DBABLK=338
+
+整个数据库所有文件中block的总和
+select
+   sum(blocks)
+from
+   dba_data_files;
+
+空闲空间的比例，最好控制在10%以内
+select decode(state,0, 'FREE',1,decode(lrba_seq,0,'AVAILABLE','BEING USED'),3, 'BEING USED', state) "BLOCK STATUS",count(*) from  x$bh 
+group by decode(state,0,'FREE',1,decode(lrba_seq,0,'AVAILABLE','BEING USED'),3, 'BEING USED', state); 
+
+最浪费内存的前10个语句占所有语句的比例，建议控制在5%以内
+
+select sum(pct_bufgets) "Percent" 
+from (select rank() over ( order by buffer_gets desc ) as 
+rank_bufgets,to_char(100 * ratio_to_report(buffer_gets) over (),'999.99') pct_bufgets from v$sqlarea ) 
+where rank_bufgets < 11;
+
+找出消耗物理IO资源最大的的SQL语句
+select disk_reads, substr(sql_text,1,4000) from v$sqlarea  order by disk_reads asc; //物理IO
+
+desc v$sqlarea
+
+select BUFFER_GETS, substr(sql_text,1,4000) from v$sqlarea  order by BUFFER_GETS asc; 
+
+buffer cache具体使用情况
+
+SET LINESIZE 200 PAGESIZE 1400
+
+SELECT /*+ ORDERED USE_HASH(o u) MERGE */
+ DECODE(obj#,
+        NULL,
+        to_char(bh.obj),
+        u.name || '.' || o.name) name,
+ COUNT(*) total,
+ SUM(DECODE((DECODE(lru_flag, 8, 1, 0) + DECODE(SIGN(tch - 2), 1, 1, 0)),
+            2,
+            1,
+            1,
+            1,
+            0)) hot,
+ SUM(DECODE(DECODE(SIGN(lru_flag - 8), 1, 0, 0, 0, 1) +
+            DECODE(tch, 2, 1, 1, 1, 0, 1, 0),
+            2,
+            1,
+            1,
+            0,
+            0)) cold,
+ SUM(DECODE(BITAND(flag, POWER(2, 19)), 0, 0, 1)) fts,
+ SUM(tch) total_tch,
+ ROUND(AVG(tch), 2) avg_tch,
+ MAX(tch) max_tch,
+ MIN(tch) min_tch
+  FROM x$bh bh, sys.obj$ o, sys.user$ u
+ WHERE
+    bh.obj <> 4294967295
+   AND bh.state in (1, 2, 3)
+   AND bh.obj = o.dataobj#(+)
+   AND bh.inst_id = USERENV('INSTANCE')
+ AND o.owner# = u.user#(+)
+--   AND o.owner# > 5
+   AND u.name NOT like 'AURORA$%'
+ GROUP BY DECODE(obj#,
+                 NULL,
+                 to_char(bh.obj),
+                 u.name || '.' || o.name)
+ ORDER BY  total desc
+ /
+
+list命令
+
+buffer cache中每一个对象的使用情况
+
+SELECT t.name AS tablespace_name,
+       o.object_name,
+       SUM(DECODE(bh.status, 'free', 1, 0)) AS free,
+       SUM(DECODE(bh.status, 'xcur', 1, 0)) AS xcur,
+       SUM(DECODE(bh.status, 'scur', 1, 0)) AS scur,
+       SUM(DECODE(bh.status, 'cr', 1, 0)) AS cr,
+       SUM(DECODE(bh.status, 'read', 1, 0)) AS read,
+       SUM(DECODE(bh.status, 'mrec', 1, 0)) AS mrec,
+       SUM(DECODE(bh.status, 'irec', 1, 0)) AS irec
+FROM   v$bh bh
+       JOIN dba_objects o ON o.data_object_id = bh.objd
+       JOIN v$tablespace t ON t.ts# = bh.ts#
+GROUP BY t.name, o.object_name
+order by xcur desc
+/
+column c0 heading "Owner"                                    format a12
+column c1 heading "Object|Name"                              format a30
+column c2 heading "Object|Type"                              format a8
+column c3 heading "Number of|Blocks in|Buffer|Cache"         format 99,999,999
+column c4 heading "Percentage|of object|blocks in|Buffer"    format 999
+column c5 heading "Buffer|Pool"                              format a7
+column c6 heading "Block|Size"                               format 99,999
+
+select
+   buffer_map.owner                                          c0,
+   object_name                                       c1,
+   case when object_type = 'TABLE PARTITION' then 'TAB PART'
+        when object_type = 'INDEX PARTITION' then 'IDX PART'
+        else object_type end c2,
+   sum(num_blocks)                                     c3,
+   (sum(num_blocks)/greatest(sum(blocks), .001))*100 c4,
+   buffer_pool                                       c5,
+   sum(bytes)/sum(blocks)                            c6
+from
+   buffer_map,
+   dba_segments s
+where
+   s.segment_name = buffer_map.object_name
+and
+   s.owner = buffer_map.owner
+and
+   s.segment_type = buffer_map.object_type
+and
+   nvl(s.partition_name,'-') = nvl(buffer_map.subobject_name,'-')
+group by
+   buffer_map.owner,
+   object_name,
+   object_type,
+   buffer_pool
+having
+   sum(num_blocks) > 10
+order by
+   sum(num_blocks) desc
+;
+
+REM dbbuffer
+
+select decode(pd.bp_id,1,'KEEP',2,'RECYCLE',3,'DEFAULT',
+         4,'2K SUBCACHE',5,'4K SUBCACHE',6,'8K SUBCACHE',
+         7,'16K SUBCACHE',8,'32KSUBCACHE','UNKNOWN') subcache,
+         bh.object_name,bh.blocks
+from x$kcbwds ds,x$kcbwbpd pd,(select /*+ use_hash(x) */ set_ds,
+         o.name object_name,count(*) BLOCKS
+         from obj$ o, x$bh x where o.dataobj# = x.obj
+         and x.state !=0 and o.owner# !=0
+         group by set_ds,o.name) bh
+where ds.set_id >= pd.bp_lo_sid
+and ds.set_id <= pd.bp_hi_sid
+and pd.bp_size != 0
+and ds.addr=bh.set_ds;
+
+with bh_lc as
+       (select /*+ ORDERED */
+          lc.addr, lc.child#, lc.gets, lc.misses, lc.immediate_gets,
+          lc.immediate_misses, lc.spin_gets, lc.sleeps,
+          bh.hladdr, bh.tch tch, bh.file#, bh.dbablk, bh.class,
+          bh.state, bh.obj
+        from
+          x$kslld ld,
+          v$session_wait sw,
+          v$latch_children lc,
+          x$bh bh
+        where lc.addr =sw.p1raw
+          and sw.p2= ld.indx
+          and ld.kslldnam='cache buffers chains'
+          and lower(sw.event) like '%latch%'
+          and sw.state='WAITING'
+          and bh.hladdr=lc.addr
+       )
+     select bh_lc.hladdr, bh_lc.tch, o.owner, o.object_name, o.object_type,
+            bh_lc.child#, bh_lc.gets,
+            bh_lc.misses, bh_lc.immediate_gets,
+            bh_lc.immediate_misses, spin_gets, sleeps
+     from
+       bh_lc,
+       dba_objects o
+     where bh_lc.obj = o.object_id(+)
+   union
+     select bh_lc.hladdr, bh_lc.tch, o.owner, o.object_name, o.object_type,
+            bh_lc.child#, bh_lc.gets, bh_lc.misses, bh_lc.immediate_gets,
+            bh_lc.immediate_misses, spin_gets, sleeps
+     from
+       bh_lc,
+       dba_objects o
+     where bh_lc.obj = o.data_object_id(+)
+  order by 1,2 desc
+/
+
+
+7、dbms_rowid
+DBMS_ROWID.ROWID_BLOCK_NUMBER(ROWID)
+
+SQL> set echo on
+SQL>
+SQL>
+SQL>
+SQL>
+SQL> create table t
+  2  ( a int,
+  3    b varchar2(4000) default rpad('*',4000,'*'),
+  4    c varchar2(3000) default rpad('*',3000,'*' )
+  5  )
+  6  /
+
+Table created.
+
+SQL>
+SQL> insert into t (a) values ( 1);
+
+1 row created.
+
+SQL> insert into t (a) values ( 2);
+
+1 row created.
+
+SQL> insert into t (a) values ( 3);
+
+1 row created.
+
+SQL> delete from t where a = 2 ;
+
+1 row deleted.
+
+SQL> insert into t (a) values ( 4);
+
+1 row created.
+
+SQL> select a from t;
+
+
+         A
+----------
+         1
+         4
+         3
+
+3 rows selected.
+
+SQL>
+SQL> -- example showing the above sort of effect without a delete
+SQL>
+SQL>
+SQL> insert into t(a) select rownum from all_users;
+
+17 rows created.
+
+SQL> commit;
+
+Commit complete.
+
+SQL> update t set b = null, c = null;
+
+20 rows updated.
+
+SQL> set serveroutput on
+SQL> commit;
+
+Commit complete.
+
+SQL>
+SQL> insert into t(a) select rownum+1000 from all_users;
+
+17 rows created.
+
+SQL> select dbms_rowid.rowid_block_number(rowid), a from t;
+
+
+DBMS_ROWID.ROWID_BLOCK_NUMBER(ROWID)          A
+------------------------------------ ----------
+                               42610          1
+                               42611          4
+                               42612          3
+                               42613          1
+                               42613       1017
+                               42614          2
+                               42614       1016
+                               42615          3
+                               42615       1015
+                               42616          4
+                               42616       1014
+                               43785          5
+                               43785       1013
+                               43786          6
+                               43786       1012
+                               43787          7
+                               43787       1011
+                               43788          8
+                               43788       1010
+                               43789          9
+                               43789       1009
+                               43790         10
+                               43790       1008
+                               43791         11
+                               43791       1007
+                               43792         12
+                               43792       1006
+                               43793         13
+                               43793       1005
+                               43794         14
+                               43794       1004
+                               43795         15
+                               43795       1003
+                               43796         16
+                               43796       1002
+                               43797         17
+                               43797       1001
+
+37 rows selected.
+
+SQL> drop table t;
+
+Table dropped.
+
+SQL>
+
+create or replace function get_rowid
+(l_rowid in varchar2)
+return varchar2
+is
+ls_my_rowid  varchar2(200);          
+rowid_type  number;          
+object_number  number;          
+relative_fno  number;          
+block_number  number;          
+row_number  number;  
+begin
+ dbms_rowid.rowid_info(l_rowid,rowid_type,object_number,relative_fno, block_number, row_number);          
+ ls_my_rowid := 'Object# is      :'||to_char(object_number)||chr(10)||
+  'Relative_fno is :'||to_char(relative_fno)||chr(10)||
+  'Block number is :'||to_char(block_number)||chr(10)||
+  'Row number is   :'||to_char(row_number);
+ return ls_my_rowid ;
+end;          
+/
+
+select rowid,a.* from t2 a;
+
+select get_rowid('AAAM13AABAAAO/6AAA')
+row_id from dual;
+
+select get_rowid('AAAM13AABAAAO/6AAB')
+row_id from dual; 
+
+Thu Mar 22                                                                         page    1
+                                  Contents of Data Buffers
+
+ROW_ID
+--------------------------------------------------------------------------------------------
+Object# is      :52599
+Relative_fno is :1
+Block number is :61434
+Row number is   :0
+
+
+8、关于buffer cache的各种SQL语句
+缓冲区命中率：
+
+select (1-(sum(decode(name, 'physical reads',value,0))/(sum(decode(name, 'db block gets',value,0)) 
+         +sum(decode(name,'consistent gets',value,0))))) * 100 "Hit Ratio"
+         from v$sysstat;
+
+SELECT (P1.VALUE + P2.VALUE - P3.VALUE) / (P1.VALUE + P2.VALUE)
+  FROM v$sysstat P1, v$sysstat P2, v$sysstat P3
+ WHERE     P1.name = 'db block gets'
+       AND P2.name = 'consistent gets'
+       AND P3.name = 'physical reads'
+
+--see the buffer cache hit ratio for one specific session
+SELECT (P1.VALUE + P2.VALUE - P3.VALUE) / (P1.VALUE + P2.VALUE)
+  FROM v$sesstat P1,
+       v$statname N1,
+       v$sesstat P2,
+       v$statname N2,
+       v$sesstat P3,
+       v$statname N3
+ WHERE     N1.name = 'db block gets'
+       AND P1.statistic# = N1.statistic#
+       AND P1.sid =141
+     AND    N2.name = 'consistent gets'
+     AND    P2.statistic# = N2.statistic#
+     AND    P2.sid = P1.sid
+     AND    N3.name = 'physical reads'
+     AND    P3.statistic# = N3.statistic#
+     AND    P3.sid = P1.sid
+
+SELECT A.file_name, B.phyrds, B.phyblkrd
+FROM SYS.dba_data_files A, v$filestat B
+WHERE B.file# = A.file_id
+ORDER BY A.file_id
+
+SELECT executions,
+buffer_gets,
+disk_reads,
+first_load_time,
+sql_text
+FROM v$sqlarea
+ORDER BY disk_reads
+
+9、清空buffer cache
+alter system flush buffer_cache;
+
+10、不同块大小的池子
+11、不同类型的池子

@@ -1,0 +1,101 @@
+1、shared pool的组成
+	3块区域：free、library cache、row cache
+	select * from v$sgastat a where a.NAME = 'library cache';
+	select * from v$sgastat a where a.pool = 'shared pool' and a.NAME = 'free memory';
+	select * from v$sgastat a where a.NAME = 'row cache';
+		简述数据字典
+
+2、硬解析、软解析
+	硬解析步骤、软解析步骤
+	讲解shared pool内存块组成结构
+	两个概念：chain、chunk
+	ora-4031错误
+	select count(*) from x$ksmsp;
+	select count(*) from dba_objects;
+	select count(*) from x$ksmsp;
+	alter system flush shared_pool;	
+
+	软硬解析的具体情况
+	select name,value from v$sysstat where name like 'parse%'
+
+
+3、SQL共享，绑定变量
+	SQL语句组成，动态部分、静态部分
+	cursor_sharing
+
+declare  v_sql varchar2(50);
+begin  for i in 1..10000 loop
+v_sql := 'insert /*hello*/ into test(id) values (:1)';  
+execute immediate v_sql using i;
+end loop;  
+commit;  
+end; 
+
+	select SQL_ID,sql_text,EXECUTIONS from v$sql where SQL_TEXT like 
+
+4、找出没有共享的SQL语句
+如何找出不能共享cursor的sql
+在v$sql查找执行次数较小的sql语句，观察这些sql语句是否是经常执行的。
+select SQL_FULLTEXT from v$sql where EXECUTIONS=1 and sql_text like '%from t%';
+select SQL_FULLTEXT from v$sql where EXECUTIONS=1 order by sql_text;
+
+5、解析命中率
+select sum(pinhits)/sum(pins)*100 from v$librarycache;
+select sum(gets),sum(getmisses),100*sum(gets-getmisses)/sum(gets)  from v$rowcache where gets>0;
+
+6、解决4031错误的方法
+	1、alter system flush shared_pool;	
+	2、共享SQL
+	3、select * from v$db_object_cache where sharable_mem > 10000
+		and (type = 'PACKAGE' or type='PACKAGE BODY' or type = 'FUNCTION' or type='PROCEDURE')
+		and kept = 'NO';
+	执行dbms_shared_pool.keep('对象名');
+	DBMS_SHARED_POOL
+	@?/rdbms/admin/dbmspool.sql
+	4、保留区
+         //保留区失败的次数
+	select REQUEST_MISSES from v$shared_pool_reserved;
+	5、增加shared pool空间
+        //查看真实的shared_pool_size信息
+	select COMPONENT,CURRENT_SIZE from V$SGA_DYNAMIC_COMPONENTS;
+	show parameter sga_target（SGA)
+	show parameter sga_max_size(SGA最大值)
+	alter system set shared_pool_size=150M scope=both;
+
+        alter system set cursor_sharing="force"   ----->绑定变量不一样也认为是同一个游标  默认必须是一模一样的SQL
+        show parameter cursor
+
+        show parameter shared_pool;
+        alter system set shared_pool_size = 20;
+        show parameter shared
+
+
+7、查看执行计划
+select count(*) from dba_objects;
+select sql_id,sql_text from v$sql where sql_text like '%count(*) from dba_objects%';
+select * from table(dbms_xplan.display_cursor('g4pkmrqrgxg3b'));
+
+8、在Oracle10g中允许有多个sub shared pool,可以设置大于1G的shared pool
+
+
+
+
+设置shared pool的大小
+SELECT 
+shared_pool_size_for_estimate "SP", 
+estd_lc_size "EL",
+estd_lc_memory_objects "ELM",
+estd_lc_time_saved "ELT", estd_lc_time_saved_factor "ELTS", 
+estd_lc_memory_object_hits "ELMO"
+FROM v$shared_pool_advice;
+
+set pagesize 1000
+//shared_pool_size 的合理设置
+SELECT 'Shared Pool' component,shared_pool_size_for_estimate estd_sp_size,estd_lc_time_saved_factor parse_time_factor,
+CASE           
+WHEN current_parse_time_elapsed_s + adjustment_s < 0 
+THEN           0           
+ELSE            
+current_parse_time_elapsed_s + adjustment_s       
+END response_time    
+FROM (SELECT shared_pool_size_for_estimate,shared_pool_size_factor,estd_lc_time_saved_factor,a.estd_lc_time_saved,e.VALUE/100  current_parse_time_elapsed_s,c.estd_lc_time_saved - a.estd_lc_time_saved adjustment_s  FROM v$shared_pool_advice a,(SELECT * FROM v$sysstat WHERE NAME = 'parse time elapsed') e,(SELECT estd_lc_time_saved   FROM v$shared_pool_advice   WHERE shared_pool_size_factor = 1) c);

@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 116
+/repos/alisoft/!svn/ver/232576/xplatform/branches/branch_3_0/asf/cache/src/java.test/com/alisoft/xplatform/asf/cache
+END
+IMemcachedCacheTest.java
+K 25
+svn:wc:ra_dav:version-url
+V 141
+/repos/alisoft/!svn/ver/248168/xplatform/branches/branch_3_0/asf/cache/src/java.test/com/alisoft/xplatform/asf/cache/IMemcachedCacheTest.java
+END
+Node.java
+K 25
+svn:wc:ra_dav:version-url
+V 126
+/repos/alisoft/!svn/ver/245541/xplatform/branches/branch_3_0/asf/cache/src/java.test/com/alisoft/xplatform/asf/cache/Node.java
+END
+StressCacheTest.java
+K 25
+svn:wc:ra_dav:version-url
+V 137
+/repos/alisoft/!svn/ver/246798/xplatform/branches/branch_3_0/asf/cache/src/java.test/com/alisoft/xplatform/asf/cache/StressCacheTest.java
+END
+MemcachedClusterTest.java
+K 25
+svn:wc:ra_dav:version-url
+V 142
+/repos/alisoft/!svn/ver/247746/xplatform/branches/branch_3_0/asf/cache/src/java.test/com/alisoft/xplatform/asf/cache/MemcachedClusterTest.java
+END
