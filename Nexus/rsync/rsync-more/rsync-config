@@ -1,0 +1,1 @@
+rsync -avH --port 873 --progress --delete /home/rsync/ root@39.98.153.232::rsync --password-file=/etc/rsyncd.secrets
