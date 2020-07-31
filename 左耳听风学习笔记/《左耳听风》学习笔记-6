@@ -39,6 +39,40 @@
 《Wireshark 数据包分析实战》
 《Linux/Unix 系统编程手册》
 四、软件设计
+1)编程范式
+  六个编程范型将改变你对编程的看法
+  斯坦福大学公开课：编程范式
+2)经典软件设计原则
+  Don’t Repeat Yourself (DRY)
+  Keep It Simple, Stupid(KISS)
+  Program to an interface, not an implementation
+  You Ain’t Gonna Need It (YAGNI)
+  Law of Demeter
+  面向对象的 S.O.L.I.D 原则
+  a)SRP（Single Responsibility Principle）- 职责单一原则
+  b)OCP（Open/Closed Principle）- 开闭原则
+  c)LSP（Liskov substitution principle）- 里氏代换原则
+  d)ISP（Interface Segregation Principle ）- 接口隔离原则
+  d)DIP（Dependency Inversion Principle）- 依赖倒置原则
+  CCP（Common Closure Principle） - 共同封闭原则
+  CRP（Common Reuse Principle）- 共同重用原则
+  好莱坞原则 - Hollywood Principle
+  IoC（Inversion of Control） 或DI（Dependency Injection）的基础原则
+  高内聚， 低耦合 & - High Cohesion & Low/Loose coupling
+  SoC (Separation of Concerns) - 关注点分离
+  DbC（Design by Contract）- 契约式设计
+  ADP（Acyclic Dependencies Principle）- 无环依赖原则
+3)软件设计书籍
+《领域驱动设计》
+《UNIX 编程艺术》
+《Clean Architecture》
+《The Twelve-Factor App》
+《Avoid Over Engineering》
+Instagram Engineering’s 3 rules to a scalable cloud application architecture ，Instagram 工程的三个黄金法则
+  a）使用稳定可靠的技术（迎接新的技术）
+  b)不要重新发明轮子
+  c)Keep it very simple
+How To Design A Good API and Why it Matters - Joshua Bloch ，Google 的一个分享，关于如何设计好一个 API。
 五、Linux系统、内存和网络
 六、异步I/OI/O模型和Lock-Free编程
 七、Java底层知识
