@@ -1,5 +1,5 @@
 host=39.98.153.232
-src=/home/rsync
+src=/home/nexus
 des=rsync
 password=/etc/rsyncd.secrets
 user=root
